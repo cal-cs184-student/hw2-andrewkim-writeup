@@ -32,85 +32,234 @@
 
 		<br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
+		Link to webpage: <a href="https://cal-cs184-student.github.io/hw2-andrewkim-writeup/">cal-cs184-student.github.io/hw2-andrewkim-writeup/</a>
 
 		<br>
 		
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
-
-		<figure>
-			<img src="assets/teapot.png" alt="Teapot" style="width:50%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
-
-		<!--
-		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
-		-->
+		Link to GitHub repository: <a href="https://github.com/cal-cs184-student/hw2-andrewkim">github.com/cal-cs184-student/hw2-andrewkim</a>
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+		In this assignment, I implemented many features in geometric modeling we learned about in lecture. I started out by first building Bezier curves and surfaces using de Casteljau’s algorithm before moving onto loop subdivision with edge flipping and splitting. These utilized the use of the very influential half-edge data structure. As a whole, I learned a lot about how to shade and modify objects to make them look much clearer, smoother, and better overall in the digital world. Learning about how to do so, as well as visually seeing the impacts and negative consequences of wrong implementations, gave me a much better big picture understanding of graphics at work.
+
+		<br>
 
 		<h2>Section I: Bezier Curves and Surfaces</h2>
 
 		<h3>Part 1: Bezier curves with 1D de Casteljau subdivision</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>De Casteljau’s algorithm is a process we use to evaluate a given point at a timestep t (ranging from 0.0 to 1.0) along a Bezier curve defined by a set of control points. At a high level, the algorithm linearly interpolates neighboring pairs of control points, connects these new intermediate points, and recursively repeats the process until a single point is reached. This final point is the location on the Bezier curve. At each subdivision level, the number of points we have reduces by one which enables us to collapse to a single point. Let’s walk through this algorithm using an example.</p>
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+		<p>Our variable t is a measurement of time ranging from 0.0 to 1.0. In our example, let’s say we want to find where to place a pixel on our screen at timestep t = 0.5, which is halfway along a Bezier curve defined by six control points:</p>
+
+		<figure>
+			<img src="assets/Stage 1 - 1.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>Our control points are given in white, with the Bezier curve in green. Given the placement of our points, we drew lines connecting them, giving us five new lines as seen above. Now using our parameter t, we can place a dot 50% of the way along each of these lines by linearly interpolating the corresponding control points using our formula p’i = lerp(pi, p(i+1), t) = (1 - t)*pi + t*p(i+1), then connecting them. These changes are seen in blue:</p>
+
+		<figure>
+			<img src="assets/Stage 1 - 2.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>For this assignment, we stop our function <code>evaluateStep()</code> at this point after evaluating one level of subdivision. However, the full algorithm continues to run subsequent levels of subdivision until it reaches a single point, the location on the Bezier curve. To implement <code>evaluateStep()</code> in order to evaluate Bezier curves, I first created an <code>std::vector</code> named <code>intermediates</code> which will hold the current intermediate control points for this subdivision level. I then iterate through the points in the given <code>points</code> vector, linearly interpolating them based on t to create new intermediate points, which are then added to <code>intermediates</code>. Finally, I return <code>intermediates</code>.</p>
+
+		<p>Let’s see how the full algorithm would unfold if we were to continue: we repeat the process recursively on our five new dots, linearly interpolating them by placing four more dots 50% of the way along the lines and connecting three more lines:</p>
+
+		<figure>
+			<img src="assets/Stage 1 - 3.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>Continuing with two more subdivision levels, we end with a single dot (in red), which is the location on the Bezier curve at timestep t.</p>
+
+		<figure>
+			<img src="assets/Stage 1 - 4.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<figure>
+			<img src="assets/Stage 1 - 5.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>To take it a step further, in order to draw the entire Bezier curve on the screen, we run de Casteljau’s algorithm for all timesteps from 0.0 to 1.0, repeating the process until the curve is fully traced out. However, in this example we just ran the algorithm once with our parameter t = 0.5.</p>
+
+		<p>Here is a slightly different Bezier curve with the original control points moved around and our parameter t set to about 0.25:</p>
+
+		<figure>
+			<img src="assets/Stage 1 - 6.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<br>
+
+		<h3>Part 2: Bezier surfaces with separable 1D de Casteljau</h3>
+		<p>De Casteljau’s algorithm seamlessly extends to Bezier surfaces by going from 1D curves in 2D space to 2D surfaces in 3D space. We are given a 2D, n x n list of 3D control points and two parameters, u and v (both ranging from 0.0 to 1.0), since we are now operating in 3D space. We run de Casteljau’s algorithm the same way we did in part 1, this time on each row using u and treating these points as a 1D curve until we reach a single point for each row (n total points for the n rows). In essence, we can then treat these n points as their own 1D bezier curve along the columns of our 2D list and then run the algorithm one last time on these points, this time using our parameter v. We end up with a final single point that lies on our Bezier surface at the parameters u and v.</p>
+
+		<p>In order to evaluate Bezier surfaces, I implemented the algorithm by modifying three functions: <code>evaluateStep()</code>, <code>evaluate1D()</code>, and <code>evaluate()</code>.</p>
+
+		<p>In <code>evaluateStep()</code>, I implemented the same logic from part 1, this time using 3D points instead of 2D ones. This function will find the intermediate control points at the next subdivision level of our points. I first create a vector <code>intermediates</code> which will store these points. I then iterate through the vector <code>points</code> (up to <code>points.size() - 1</code> to avoid out of bounds errors), linearly interpolating neighboring 3D control points before adding them to <code>intermediates</code>. I end by returning <code>intermediates</code>.</p>
+
+		<p><code>evaluate1D()</code> will be responsible for evaluating the final, single point that lies on the Bezier curve at the parameter t, which I implemented recursively. I start by checking the base case of whether or not our list <code>points</code> has just one element. If it does, I return that point, which is the point that lies on the curve. Otherwise, I call <code>evaluateStep()</code> on <code>points</code> and <code>t</code>, finding the intermediate points at the next subdivision level, ending by returning a recursive call to <code>evaluate1D()</code> on these intermediate points and <code>t</code>.</p>
+
+		<p>Our last function <code>evaluate()</code> is responsible for outputting the final point that lies on our Bezier surface. To implement it, I start by creating a new vector of 3D points, <code>finalPoints</code>, which stores our n evaluated points at each of the n rows of <code>controlPoints</code>. To find these points, I call <code>evaluate1D()</code> (as implemented above) on each row of <code>controlPoints</code> using our parameter <code>u</code>, adding the evaluated points to <code>finalPoints</code>. Now that we have a new set of control points, we can treat them as their own 1D Bezier curve and call <code>evaluate1D()</code> one more time on them using v, returning this last evaluated point. This final point is our point that lies on the Bezier surface at parameters u and v.</p>
+
+		<p>Here are some images of a teapot that was evaluated by my implementation:</p>
+
 		<div style="display: flex; flex-direction: column; align-items: center;">
 			<table style="width: 100%; text-align: center; border-collapse: collapse;">
 			  <tr>
 				<td style="text-align: center;">
-				  <img src="assets/teapot.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/Stage 2 - 1.png" width="400px"/>
 				</td>
 				<td style="text-align: center;">
-				  <img src="assets/teapot.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="assets/teapot.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="assets/teapot.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
+				  <img src="assets/Stage 2 - 2.png" width="400px"/>
 				</td>
 			  </tr>
 			</table>
 		</div>
 
-		<h3>Part 2: Bezier surfaces with separable 1D de Casteljau</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<br>
 
 		<h2>Section II: Triangle Meshes and Half-Edge Data Structure</h2>
 
 		<h3>Part 3: Area-weighted vertex normals</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>To implement the area-weighted vertex normals, I modified the function <code>normal()</code> by first creating a running sum of all area-weighted normals, <code>sumOfNormals</code>. I then grab the starting half-edge of our vertex and make a copy to use in the loop condition, both using <code>HalfedgeCIter</code> as described in the spec. In my loop, I start by checking if our face is valid and not on a boundary, since some triangles are along the borders of our object. I then compute the cross product by getting our three vertex positions for the current triangle face using the half-edge data structure and compute two edge vectors. By then calling <code>cross()</code> on these edge vectors, we get a face normal whose magnitude is proportional to twice the triangle’s area. I end by adding our cross product to <code>sumOfNormals</code>. In my implementation, I use a do-while loop with the condition: while our current half-edge isn’t the same as our starting half-edge. This allows us to run one iteration first before we “increment” by changing our current half-edge to the next half-edge around the vertex and prevent premature exiting on the first half-edge. To end the function, I normalize and return the vector <code>sumOfNormals</code> with a call to the helper function <code>unit()</code>.</p>
+
+		<p>Here are side-by-side images of the teapot with and without vertex normals. They correspond to Phong shading (left) and flat shading (right), and we can see the difference using vertex normals makes:</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 3 - 1.png" width="400px"/>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 3 - 2.png" width="400px"/>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<br>
 
 		<h3>Part 4: Edge flip</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>To implement the edge flip operation, I modified the function <code>flipEdge()</code>. I first check if our given edge is a boundary and return if it is, since we can’t flip an edge that is one. I then break the problem down into two parts: the first finds all of the elements in the mesh and the second reassigns pointers in the modified mesh after flipping the edge, regardless of whether they are unchanged or not to prevent errors as explained in the spec. I also implemented this function without adding or deleting any mesh elements since edge flips don’t do so.</p>
+
+		<p>To start the first part, I find the two inner half-edges as well as the four outer half-edges by creating <code>HalfedgeIter</code> iterators and assigning them appropriately using the <code>HalfEdgeMesh</code> class functions <code>halfedge()</code>, <code>twin()</code>, and <code>next()</code>. Then, I find the four vertices and edges as well as the two faces, again using these built in functions to assign them all running counterclockwise.</p>
+
+		<p>In the second part, I start by calling <code>setNeighbors()</code> on each of the six half-edges, reassigning the pointers of the top triangle and then the bottom one to their new elements after flipping. An important thing to note here is that we started with a left and right triangle since our initial edge ran vertically, but now it runs horizontally after flipping clockwise, so we have a top and bottom triangle. The geometric properties then change where the top right edge now belongs to the “left” triangle (the new top one) and the bottom left edge belongs to the “right” triangle (the new bottom one). I continue by updating the vertices, edges, and faces to point at their new half-edges before returning <code>e0</code> to end the function.</p>
+
+		<p>Here are some images of our teapot before and after some edge flips:</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 4 - 1.png" width="400px"/>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 4 - 2.png" width="400px"/>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>I went through a long and extensive debugging process to fully debug my code to be able to flip edges on the mesh as seen above. Here is my journey:</p>
+
+		<p>It started with me having difficulty with finding out which initial inner half-edge I was getting when I called <code>e0->halfedge()</code>, so I decided to throw in an if statement that checks which half-edge I received to ensure that I was able to assign the top and bottom vertices correctly. I check if the half-edge’s vertex is lower than its twin, and if so, swapped them so that the vertex of the half-edge that points up is assigned to the top vertex. However, after a while this seemed to be wrong in multiple ways which I’ll explain below, so I removed the if block entirely to see if that fixed anything, which it did.</p>
+
+		<p>Continuing on, I again had trouble debugging what was wrong when I found that when calling <code>setNeighbors()</code> on the half-edges, I incorrectly ordered the parameters, mixing up the edges and half-edges numerous times, and incorrectly assigned the wrong <code>Iter</code>s and edges in many places. I went back and double checked each call to the function to make sure all the parameters were correct. In addition, I incorrectly assigned the left and right faces. I realized that when you flip an edge, the half-edge that a face belongs to goes with it. For example, the inner left half-edge’s face was the left face, and when flipped, it becomes the top. In relation, the new face for the top right edge is this face. The same logic applies to the bottom left edge.</p>
+
+		<p>When running my implementation, holes were created when I pressed F on an edge. It started with just one triangle, but then became its neighboring one too at the same time. I couldn’t figure this bug out until I found the root cause:</p>
+
+		<p>In the end, I came to a major realization that I was incorrectly assuming that the vertices were the destination of each half-edge rather than the source, which caused all of these issues when trying to run my implementation. I went back and correctly changed where each vertex is used and made sure they referred to the source, specifically in calls to <code>setNeighbors()</code> and when initially grabbing the four vertices. This ended up fixing everything, including the holes that were being formed, and I could then flip edges successfully.</p>
+
+		<br>
 
 		<h3>Part 5: Edge split</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>To implement the edge split operation, I modified the <code>splitEdge()</code> function using very similar logic as <code>flipEdge()</code>. I start by again checking if the given edge <code>e0</code> is a boundary and return one of its vertices if it is, since we cannot split edges that are one. I then split the rest of the function into three parts: the first finds the elements in the mesh, the second gets the new mesh elements after splitting, and the third reassigns pointers in the modified mesh regardless of whether or not they are unchanged to prevent errors as described in the spec. In <code>splitEdge()</code>, we do add elements unlike <code>flipEdge()</code>, which I will go into more detail later.</p>
+
+		<p>To start the first part, I find the two inner and four outer half-edges by creating <code>HalfedgeIter</code> iterators and assign them appropriately using the built in <code>HalfEdgeMesh</code> class functions <code>halfedge()</code>, <code>twin()</code>, and <code>next()</code>. This is done so in a counterclockwise direction. I then find the four vertices and two faces, also using the class’s built in functions.</p>
+
+		<p>In the second part, I utilize each of the four iterator types of the <code>HalfEdgeMesh</code> class to create the new vertex we insert into our triangle, the three new edges that get formed, the two new faces, and the six new half-edges. Afterwards, I initialize the new vertex we created to be halfway along the inner edge by finding the midpoint between the top and bottom vertices.</p>
+
+		<p>Finally, in the third part (reassignments) I extensively use the <code>setNeighbors()</code> function on each of the four triangles we are left with, carefully ensuring that I gave each parameter correctly. I then reassign the half-edges of the five vertices, the four inner edges, and the four faces of our new mesh appropriately before ending the function by returning our new vertex.</p>
+
+		<p>Using my implementation, here are before and after images of our teapot using edge splits:</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 5 - 1.png" width="400px"/>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 5 - 2.png" width="400px"/>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Here are also before and after images of this teapot using a combination of edge splits and edge flips:</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 5 - 3.png" width="400px"/>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 5 - 4.png" width="400px"/>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Thanks to my debugging experience in the previous part, I did not have as many problems when implementing and debugging <code>splitEdge()</code> now that I knew what to carefully watch out for. However, I still had a similar experience. One issue that came up was that although my edges were splitting when running the mesh, new triangles would form that were in black. It turns out that in my calls to <code>setNeighbors()</code>, I was incorrectly assigning the vertices for many of them, so I double checked every parameter. It turns out that this messed up the counterclockwise winding order, which inverted the face normals causing the black holes. Additionally, I found that I was incorrectly reassigning the half-edges of the vertices, edges, and faces in part three.</p>
+
+		<br>
 
 		<h3>Part 6: Loop subdivision for mesh upsampling</h3>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>To implement loop subdivision I modified the function <code>upsample()</code> by splitting it into the five parts given to us in the spec and starter code.</p>
 
-		<h2>(Optional) Section III: Potential Extra Credit - Art Competition: Model something Creative</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>To start, in the first part I began by iterating through each vertex one by one and setting their <code>isNew</code>> tag to <code>false</code>> since they are not new vertices. I then create two counter variables to keep track of the number of neighbors each vertex has as well as their neighbors’ combined position vectors. I then find the neighbors using the half-edge data structure, keeping track of the starting point to use as our nested loop condition. In the inner loop, I get the current neighbor’s position and add it to our running sum, increment the number of neighbors, then move onto the next half-edge and vertex, ending the do-while loop by checking if we returned back to our starting point. Finally, I get the correct smoothing factor as well as update the position of our current vertex.</p>
 
-		<h2>Additional Notes (please remove)</h2>
-		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
-		</ul>
+		<p>As for the second part, this time I loop through every edge in the mesh and set their <code>isNew</code>> tags to <code>false</code> since they aren’t new. Then, after getting the first and second endpoint positions, as well as the two outer vertex positions of the triangles sharing this edge, I apply the new vertex position from the spec to get the position of the new vertex and save it in the edge’s <code>newPosition</code>.</p>
+
+		<p>In the third part, I start by creating a list to store pointers to our edges and fill it up in order to keep track of which edges were originally there at the beginning. I then iterate through these original edges, get their smooth midpoint coordinates we saved, and store them before splitting. I then call <code>splitEdge()</code> as previously implemented, set the new vertex’s <code>isNew</code>> flag to <code>true</code>>, and set its <code>newPosition</code> to the coordinate we just stored.</p>
+
+		<p>For the fourth part, I iterate through all the edges in the mesh, new or old, and check if they are new. If one is, I grab both of its endpoints and call <code>flipEdge()</code> on it if they connect one old and one new vertex. This is to ensure our triangles don’t end up looking uneven.</p>
+
+		<p>Finally, in part 5 I once again iterate through every vertex in the mesh and change the current vertex’s position to its <code>newPosition</code> to change the shape of the mesh. I end by setting the <code>isNew</code>> flag to <code>false</code> for the next round of loop subdivision, since they will no longer be new at that function call.</p>
+
+		<p>Here are some observations I made when running my implementation, as well as screenshots to help aid my explanations:</p>
+
+		<p>After performing multiple layers of loop subdivision, I did notice the cube became much more smooth all around. Sharp corners and edges became more curved making the overall model appear more ball-like. Here are the before and after of running loop subdivision a couple of times on a cube:</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 6 - 1.png" width="400px"/>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/Stage 6 - 2.png" width="400px"/>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>By pre-splitting edges around a single corner, I ended up getting a deformed version where it looked like that corner was pulled outward.</p>
+
+		<figure>
+			<img src="assets/Stage 6 - 3.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>I was unable to reduce this effect by pre-splitting edges near all of the corners as the end result just looked like a more curved cube.</p>
+
+		<figure>
+			<img src="assets/Stage 6 - 4.png" alt="Curve" style="width:50%"/>
+		</figure>
+
+		<p>Therefore, my pre-processing of the cube with edge flips and splits did not allow the cube to subdivide symmetrically.</p>
+
+
 		</div>
 	</body>
 </html>
